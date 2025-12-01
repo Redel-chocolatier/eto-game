@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>えとちゃんノベルゲーム（仮）</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #111;
+      color: #fff;
+      font-family: "Yu Gothic", sans-serif;
+    }
+    #game {
+      width: 800px;
+      height: 600px;
+      margin: 20px auto;
+      background: #222;
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0,0,0,0.6);
+    }
+    #scene-image {
+      flex: 3;
+      background: #000 center/cover no-repeat;
+      position: relative;
+    }
+    #name-box {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      padding: 6px 16px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    #textbox {
+      flex: 2;
+      background: #333;
+      padding: 16px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #text {
+      font-size: 18px;
+      line-height: 1.7;
+      min-height: 4em;
+      cursor: pointer;
+    }
+    #hint {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+    #choices {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .choice-btn {
+      background: #555;
+      border: none;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 16px;
+      text-align: left;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .choice-btn:hover {
+      background: #777;
+    }
+    #end-label {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #ffcc66;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game">
+  <div id="scene-image">
+    <div id="name-box"></div>
+  </div>
+  <div id="textbox">
+    <div>
+      <div id="text"></div>
+      <div id="hint">※ クリックで次の文章、選択肢が出たらボタンを押してね</div>
+    </div>
+    <div id="choices"></div>
+  </div>
+</div>
+
+<script>
+  // ======== ここからシナリオ定義 =========
+  // sceneId をキーにしたシーンデータ
+  const scenes = {
+    // オープニング
+    "start": {
+      name: "名無しのプレイヤー",
+      image: "eto01.png", // フォルダ内の画像ファイル名
+      text: [
+        "放課後の配信終わり、スマホの画面には今日のアーカイブが並んでいる。",
+        "通知欄には、いつもの名前。",
+        "――えとちゃんだ。"
+      ],
+      choices: [
+        { label: "アーカイブを再生する", next: "watch_archive" },
+        { label: "コメント欄を開く", next: "open_comment" }
+      ]
+    },
+
+    // アーカイブ視聴ルート
+    "watch_archive": {
+      name: "えと",
+      image: "eto01.png",
+      text: [
+        "『今日も来てくれてありがと～！』",
+        "画面の向こうで、えとちゃんが笑っている。",
+        "何度も見たはずなのに、胸の高鳴りはおさまらない。"
+      ],
+      choices: [
+        { label: "もっと見ていたい", next: "good_end" },
+        { label: "現実に戻ろう、と画面を閉じる", next: "normal_end" }
+      ]
+    },
+
+    // コメント欄を開くルート
+    "open_comment": {
+      name: "えと",
+      image: "eto01.png",
+      text: [
+        "『コメント全部読んでるからね～！』",
+        "そう言っていた言葉を思い出しながら、キーボードを叩く。",
+        "――今日も楽しかったです。また次の配信で。"
+      ],
+      choices: [
+        { label: "送信ボタンを押す", next: "comment_end" },
+        { label: "やっぱり下書きに保存しておく", next: "normal_end" }
+      ]
+    },
+
+    // エンドいろいろ
+    "good_end": {
+      name: "END",
+      image: "eto01.png",
+      text: [
+        "何度も何度も、同じ笑顔を再生する夜。",
+        "画面越しにしか会えない推しだけれど、確かにここにいてくれる。",
+        "――これは、わたしだけのグッドエンド。"
+      ],
+      end: "GOOD END"
+    },
+
+    "comment_end": {
+      name: "END",
+      image: "eto01.png",
+      text: [
+        "『今日も来てくれてありがと～！◯◯ちゃんのコメント、ちゃんと届いてるよ』",
+        "翌日の配信でそう言われて、心臓が跳ねる。",
+        "世界のどこかで、推しと自分の時間がつながっている気がした。"
+      ],
+      end: "COMMENT END"
+    },
+
+    "normal_end": {
+      name: "END",
+      image: "eto01.png",
+      text: [
+        "画面を閉じると、静かな部屋だけが残った。",
+        "でも、スマホを開けばいつでも、あの声に会える。",
+        "明日こそ、もう一歩だけ近づけるだろうか。"
+      ],
+      end: "NORMAL END"
+    }
+  };
+  // ======== ここまでシナリオ定義 =========
+
+  let currentSceneId = "start";
+  let currentLine = 0;
+
+  const sceneImage = document.getElementById("scene-image");
+  const nameBox   = document.getElementById("name-box");
+  const textBox   = document.getElementById("text");
+  const choicesDiv = document.getElementById("choices");
+
+  function showScene(id) {
+    currentSceneId = id;
+    currentLine = 0;
+    const scene = scenes[id];
+
+    // 画像 & 名前
+    sceneImage.style.backgroundImage = scene.image
+      ? `url(${scene.image})` : "none";
+    nameBox.textContent = scene.name || "";
+
+    // テキスト最初の一文
+    textBox.textContent = scene.text[0] || "";
+    // 選択肢リセット
+    choicesDiv.innerHTML = "";
+
+    // エンドシーンなら選択肢を表示してテキストクリック無効
+    if (scene.end) {
+      const endLabel = document.createElement("div");
+      endLabel.id = "end-label";
+      endLabel.textContent = scene.end;
+      choicesDiv.appendChild(endLabel);
+
+      const restart = document.createElement("button");
+      restart.className = "choice-btn";
+      restart.textContent = "最初からやり直す";
+      restart.onclick = () => showScene("start");
+      choicesDiv.appendChild(restart);
+    }
+  }
+
+  // テキストクリックで次の行へ
+  textBox.addEventListener("click", () => {
+    const scene = scenes[currentSceneId];
+    if (scene.end) return; // エンドは進めない
+
+    currentLine++;
+    if (currentLine < scene.text.length) {
+      textBox.textContent = scene.text[currentLine];
+    } else {
+      // 文章を最後まで読んだら選択肢表示
+      showChoices(scene);
+    }
+  });
+
+  function showChoices(scene) {
+    choicesDiv.innerHTML = "";
+    if (!scene.choices) return;
+
+    scene.choices.forEach(choice => {
+      const btn = document.createElement("button");
+      btn.className = "choice-btn";
+      btn.textContent = choice.label;
+      btn.onclick = () => {
+        choicesDiv.innerHTML = "";
+        showScene(choice.next);
+      };
+      choicesDiv.appendChild(btn);
+    });
+  }
+
+  // ゲーム開始
+  showScene("start");
+</script>
+
+</body>
+</html>
